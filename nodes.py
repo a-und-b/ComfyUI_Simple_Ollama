@@ -11,14 +11,14 @@ Features
 - Vision / image input (base64, works with any multimodal model)
 - System prompt + combined prompt input
 - Thinking mode (QwQ, DeepSeek-R1, …)
-- Seed, max_tokens, temperature, num_ctx, keep_alive
-- JSON mode for structured output
+- Seed, max_tokens, temperature, keep_alive
 - Separate "response", "thinking" and "prompt_sent" outputs
 """
 
 import json
 import base64
 import io
+import re
 import urllib.request
 import urllib.error
 
@@ -176,13 +176,6 @@ class SimpleOllamaNode:
                     "round": 0.01,
                     "tooltip": "Sampling temperature. Lower = more deterministic.",
                 }),
-                "num_ctx": ("INT", {
-                    "default": 4096,
-                    "min": 256,
-                    "max": 131072,
-                    "step": 256,
-                    "tooltip": "Context window size in tokens. Ollama default is 4096. Raise for long prompts/documents.",
-                }),
                 "keep_alive": ("FLOAT", {
                     "default": 5.0,
                     "min": -1.0,
@@ -196,12 +189,6 @@ class SimpleOllamaNode:
                     "label_on": "Thinking ON",
                     "label_off": "Thinking OFF",
                     "tooltip": "Enable extended thinking/reasoning (requires a supporting model, e.g. QwQ, DeepSeek-R1).",
-                }),
-                "json_mode": ("BOOLEAN", {
-                    "default": False,
-                    "label_on": "JSON ON",
-                    "label_off": "JSON OFF",
-                    "tooltip": "Force the model to return valid JSON. Useful for piping into JSON Helper etc.",
                 }),
             },
             "optional": {
@@ -219,6 +206,15 @@ class SimpleOllamaNode:
             },
         }
 
+    @classmethod
+    def VALIDATE_INPUTS(cls, model, **_kwargs):
+        """The model COMBO is populated dynamically by the JS extension after
+        connecting to Ollama — accept any non-empty string so ComfyUI doesn't
+        reject values that aren't in the static ['none'] list."""
+        if not model or model == "none":
+            return "Select a model first (click 🔌 Connect to load the list)."
+        return True
+
     # ------------------------------------------------------------------
     def run(
         self,
@@ -228,10 +224,8 @@ class SimpleOllamaNode:
         seed: int,
         max_tokens: int,
         temperature: float,
-        num_ctx: int,
         keep_alive: float,
         thinking_mode: bool,
-        json_mode: bool,
         image=None,
         system_prompt: str = "",
     ):
@@ -254,9 +248,9 @@ class SimpleOllamaNode:
         # ---- Build the request payload --------------------------------
         # keep_alive: Ollama expects a duration string like "5m", "0", "-1"
         if keep_alive < 0:
-            keep_alive_str = "-1"
+            keep_alive_str = "-1m"
         elif keep_alive == 0:
-            keep_alive_str = "0"
+            keep_alive_str = "0m"
         else:
             keep_alive_str = f"{keep_alive}m"
 
@@ -269,15 +263,13 @@ class SimpleOllamaNode:
                 "seed": seed,
                 "num_predict": max_tokens,
                 "temperature": temperature,
-                "num_ctx": num_ctx,
             },
         }
 
-        if thinking_mode:
-            payload["think"] = True
-
-        if json_mode:
-            payload["format"] = "json"
+        # Explicitly send think: true/false — models like Qwen 3 think by
+        # default, consuming the entire num_predict budget on reasoning tokens
+        # and returning empty content unless explicitly told not to.
+        payload["think"] = thinking_mode
 
         # ---- Call the Ollama API -------------------------------------
         raw = json.dumps(payload).encode("utf-8")
@@ -305,6 +297,16 @@ class SimpleOllamaNode:
         response_text: str = message.get("content", "")
         thinking_text: str = message.get("thinking", "")
 
+        # Some models (DeepSeek-R1, older Qwen) embed <think>…</think> tags
+        # directly inside content instead of using the separate thinking field.
+        # Strip them out so the response output is always clean.
+        think_pattern = re.compile(r"<think>(.*?)</think>", re.DOTALL)
+        inline_think = think_pattern.findall(response_text)
+        if inline_think:
+            if not thinking_text:
+                thinking_text = "\n\n".join(inline_think)
+            response_text = think_pattern.sub("", response_text).strip()
+
         # Log a short summary to the ComfyUI console
         tok_in  = result.get("prompt_eval_count", "?")
         tok_out = result.get("eval_count", "?")
@@ -314,8 +316,7 @@ class SimpleOllamaNode:
             f"[SimpleOllama] model={model}  "
             f"tokens in={tok_in} out={tok_out}  "
             f"time={dur_s}  "
-            f"thinking={'yes' if thinking_text else 'no'}  "
-            f"json={json_mode}"
+            f"thinking={'yes' if thinking_text else 'no'}"
         )
 
         return (response_text, thinking_text, prompt)

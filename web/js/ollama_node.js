@@ -3,8 +3,9 @@
  *
  * What this does:
  *  1. Adds a "🔌 Connect" button that loads available models from Ollama.
- *  2. Shows model info (params, quant, context window) in a second button
- *     below the model dropdown whenever the selection changes.
+ *  2. Shows model info (params, quant, context window) in a second button.
+ *     Connect + info sit between the model combo and the prompt (reordered
+ *     safely so seed / control-after-generate stay paired).
  *  3. Persists the last-used URL in localStorage across page reloads.
  */
 
@@ -29,9 +30,8 @@ app.registerExtension({
             const node = this;
 
             // --- Locate existing widgets --------------------------------
-            const urlWidget    = findWidget(node, "ollama_url");
-            const modelWidget  = findWidget(node, "model");
-            const numCtxWidget = findWidget(node, "num_ctx");
+            const urlWidget   = findWidget(node, "ollama_url");
+            const modelWidget = findWidget(node, "model");
 
             if (!urlWidget || !modelWidget) {
                 console.warn("[SimpleOllama] Could not find expected widgets.");
@@ -44,7 +44,7 @@ app.registerExtension({
                 urlWidget.value = savedUrl;
             }
 
-            // --- Connect button (after URL) -----------------------------
+            // --- Connect button (moved after model, before prompt) -------
             const btnConnect = node.addWidget(
                 "button",
                 "🔌 Connect",
@@ -77,7 +77,7 @@ app.registerExtension({
                                 node
                             );
                             // Fetch info for the initially selected model
-                            fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
+                            fetchModelInfo(urlWidget, modelWidget, btnInfo, node);
                         } else {
                             const msg = data.error ?? "No models found";
                             setBtn(btnConnect, `❌ ${truncate(msg, 40)}`, node);
@@ -99,30 +99,39 @@ app.registerExtension({
                 null,
                 () => {
                     // Click to manually re-fetch info
-                    fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
+                    fetchModelInfo(urlWidget, modelWidget, btnInfo, node);
                 },
                 { serialize: false }
             );
 
-            // --- Reorder: URL → 🔌 Connect → model → ℹ️ Info → rest ----
-            repositionWidget(node, btnConnect, urlWidget);
-            repositionWidget(node, btnInfo, modelWidget);
+            // Place: url → model → 🔌 Connect → ℹ️ info → prompt → …
+            // Only insert *after* model so prompt + seed + control_after_generate
+            // stay contiguous (inserting after url broke that pairing before).
+            repositionWidget(node, btnConnect, modelWidget);
+            repositionWidget(node, btnInfo, btnConnect);
 
             // --- Refresh info whenever model combo changes --------------
             const _origCallback = modelWidget.callback;
             modelWidget.callback = function (value) {
                 _origCallback?.call(this, value);
-                fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
+                fetchModelInfo(urlWidget, modelWidget, btnInfo, node);
             };
+
+            // Saved graphs: model may already be set but info row never updated
+            if (modelWidget.value && modelWidget.value !== "none" && urlWidget.value?.trim()) {
+                queueMicrotask(() =>
+                    fetchModelInfo(urlWidget, modelWidget, btnInfo, node)
+                );
+            }
         };
     },
 });
 
 // ---------------------------------------------------------------------------
-// Fetch model info and update the info button label + num_ctx
+// Fetch model info and update the info button label
 // ---------------------------------------------------------------------------
 
-async function fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node) {
+async function fetchModelInfo(urlWidget, modelWidget, btnInfo, node) {
     const ollamaUrl = urlWidget.value?.trim();
     const modelName = modelWidget.value;
     if (!ollamaUrl || !modelName || modelName === "none") return;
@@ -147,11 +156,6 @@ async function fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, nod
                 parts.length > 0 ? `ℹ️  ${parts.join("  ·  ")}` : "ℹ️  No details available",
                 node
             );
-
-            // Auto-adjust num_ctx if user still has the default 4096
-            if (data.context_length && numCtxWidget && numCtxWidget.value === 4096) {
-                numCtxWidget.value = data.context_length;
-            }
         } else {
             setBtn(btnInfo, `⚠️  ${truncate(data.error || "Unknown error", 50)}`, node);
         }

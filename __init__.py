@@ -10,8 +10,9 @@ License: MIT
 
 from .nodes import NODE_CLASS_MAPPINGS, NODE_DISPLAY_NAME_MAPPINGS
 
-# Tell ComfyUI where to find the JavaScript web extension
-WEB_DIRECTORY = "./web"
+# ComfyUI auto-loads .js files from WEB_DIRECTORY itself, so point directly
+# at the folder that contains the extension script.
+WEB_DIRECTORY = "./web/js"
 
 __all__ = [
     "NODE_CLASS_MAPPINGS",
