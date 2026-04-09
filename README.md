@@ -10,8 +10,6 @@ Built because most Ollama integrations are buried in huge node packs or abandone
 - **Live model info** — shows parameter count, quantization, model family and context window for the selected model
 - **Vision support** — pipe any IMAGE node in and the model sees it (works with Gemma 3, LLaVA, Qwen-VL, etc.)
 - **Thinking mode** — get the model's chain-of-thought as a separate output (QwQ, DeepSeek-R1, …)
-- **JSON mode** — force valid JSON output for structured pipelines
-- **Smart context window** — `num_ctx` auto-adjusts to the selected model's max context length
 - **VRAM management** — `keep_alive` controls how long the model stays loaded (set to -1 for always-on, 0 to free VRAM immediately)
 - **Prompt passthrough** — third output returns the exact prompt that was sent, useful for debugging or logging
 
@@ -33,9 +31,9 @@ No additional dependencies needed — uses only Python stdlib + PIL/numpy (alrea
 
 1. Add the **Simple Ollama 🦙** node (category: `AI/Ollama`)
 2. Enter your Ollama server URL (e.g. `http://192.168.1.100:11434`)
-3. Click **🔌 Connect** — the model dropdown populates automatically
-4. Select a model — info bar shows parameters, quantization and context window
-5. Write your prompt, adjust settings, queue the workflow
+3. Click **🔌 Connect** (between the model field and the prompt) — the model dropdown fills from your server
+4. Select a model — the info row shows parameters, quantization, and context window
+5. Write your prompt in the field below, adjust other settings, queue the workflow
 
 ### Inputs
 
@@ -47,10 +45,8 @@ No additional dependencies needed — uses only Python stdlib + PIL/numpy (alrea
 | `seed` | INT | ✅ | Random seed (0 = random each run) |
 | `max_tokens` | INT | ✅ | Max tokens to generate |
 | `temperature` | FLOAT | ✅ | Sampling temperature (0 = deterministic) |
-| `num_ctx` | INT | ✅ | Context window size in tokens |
 | `keep_alive` | FLOAT | ✅ | Minutes to keep model in VRAM (-1 = forever) |
 | `thinking_mode` | BOOL | ✅ | Enable chain-of-thought reasoning |
-| `json_mode` | BOOL | ✅ | Force valid JSON output |
 | `image` | IMAGE | ❌ | Optional image for vision models |
 | `system_prompt` | STRING | ❌ | System-level instruction |
 
