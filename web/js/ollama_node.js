@@ -3,16 +3,17 @@
  *
  * What this does:
  *  1. Adds a "🔌 Connect" button that loads available models from Ollama.
- *  2. Shows model info (params, quant, context window) when a model is selected.
+ *  2. Shows model info (params, quant, context window) in a second button
+ *     below the model dropdown whenever the selection changes.
  *  3. Persists the last-used URL in localStorage across page reloads.
  */
 
 import { app } from "../../scripts/app.js";
 
-const NODE_NAME       = "SimpleOllamaNode";
-const ROUTE_MODELS    = "/simple_ollama/models";
-const ROUTE_INFO      = "/simple_ollama/model_info";
-const LS_KEY_URL      = "simple_ollama_last_url";
+const NODE_NAME    = "SimpleOllamaNode";
+const ROUTE_MODELS = "/simple_ollama/models";
+const ROUTE_INFO   = "/simple_ollama/model_info";
+const LS_KEY_URL   = "simple_ollama_last_url";
 
 app.registerExtension({
     name: "Comfy.SimpleOllama",
@@ -28,8 +29,8 @@ app.registerExtension({
             const node = this;
 
             // --- Locate existing widgets --------------------------------
-            const urlWidget   = findWidget(node, "ollama_url");
-            const modelWidget = findWidget(node, "model");
+            const urlWidget    = findWidget(node, "ollama_url");
+            const modelWidget  = findWidget(node, "model");
             const numCtxWidget = findWidget(node, "num_ctx");
 
             if (!urlWidget || !modelWidget) {
@@ -43,30 +44,19 @@ app.registerExtension({
                 urlWidget.value = savedUrl;
             }
 
-            // --- Model info label (non-interactive, read-only) ----------
-            const infoWidget = node.addWidget(
-                "text",         // read-only text display
-                "model_info",
-                "ℹ️ Select a model to see details",
-                () => {},
-                { serialize: false }
-            );
-            // Make it non-editable
-            infoWidget.disabled = true;
-
-            // --- Connect button -----------------------------------------
-            const btnWidget = node.addWidget(
+            // --- Connect button (after URL) -----------------------------
+            const btnConnect = node.addWidget(
                 "button",
                 "🔌 Connect",
                 null,
                 async () => {
                     const ollamaUrl = urlWidget.value?.trim();
                     if (!ollamaUrl) {
-                        setBtn(btnWidget, "⚠️ Enter URL first", node);
+                        setBtn(btnConnect, "⚠️ Enter URL first", node);
                         return;
                     }
 
-                    setBtn(btnWidget, "⏳ Connecting…", node);
+                    setBtn(btnConnect, "⏳ Connecting…", node);
                     localStorage.setItem(LS_KEY_URL, ollamaUrl);
 
                     try {
@@ -81,52 +71,63 @@ app.registerExtension({
                             if (!data.models.includes(modelWidget.value)) {
                                 modelWidget.value = data.models[0];
                             }
-
                             setBtn(
-                                btnWidget,
+                                btnConnect,
                                 `✅ ${data.models.length} model${data.models.length !== 1 ? "s" : ""}`,
                                 node
                             );
-
                             // Fetch info for the initially selected model
-                            fetchModelInfo(urlWidget, modelWidget, numCtxWidget, infoWidget, node);
+                            fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
                         } else {
                             const msg = data.error ?? "No models found";
-                            setBtn(btnWidget, `❌ ${truncate(msg, 40)}`, node);
+                            setBtn(btnConnect, `❌ ${truncate(msg, 40)}`, node);
                         }
                     } catch (err) {
-                        setBtn(btnWidget, `❌ ${truncate(err.message, 40)}`, node);
-                        console.error("[SimpleOllama] Fetch error:", err);
+                        setBtn(btnConnect, `❌ ${truncate(err.message, 40)}`, node);
+                        console.error("[SimpleOllama] Connect error:", err);
                     }
                 },
                 { serialize: false }
             );
 
-            // --- Reorder: URL → Connect → Model → Info → rest ----------
-            repositionWidget(node, btnWidget, urlWidget);
-            repositionWidget(node, infoWidget, modelWidget);
+            // --- Info button (after model) – disabled, acts as label ----
+            // Using a button widget as a read-only display row; clicking it
+            // re-fetches the info. No "text" type exists in ComfyUI.
+            const btnInfo = node.addWidget(
+                "button",
+                "ℹ️ Connect first to see model info",
+                null,
+                () => {
+                    // Click to manually re-fetch info
+                    fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
+                },
+                { serialize: false }
+            );
 
-            // --- Fetch model info whenever the model combo changes ------
+            // --- Reorder: URL → 🔌 Connect → model → ℹ️ Info → rest ----
+            repositionWidget(node, btnConnect, urlWidget);
+            repositionWidget(node, btnInfo, modelWidget);
+
+            // --- Refresh info whenever model combo changes --------------
             const _origCallback = modelWidget.callback;
             modelWidget.callback = function (value) {
                 _origCallback?.call(this, value);
-                fetchModelInfo(urlWidget, modelWidget, numCtxWidget, infoWidget, node);
+                fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node);
             };
         };
     },
 });
 
 // ---------------------------------------------------------------------------
-// Fetch and display model info
+// Fetch model info and update the info button label + num_ctx
 // ---------------------------------------------------------------------------
 
-async function fetchModelInfo(urlWidget, modelWidget, numCtxWidget, infoWidget, node) {
+async function fetchModelInfo(urlWidget, modelWidget, numCtxWidget, btnInfo, node) {
     const ollamaUrl = urlWidget.value?.trim();
     const modelName = modelWidget.value;
     if (!ollamaUrl || !modelName || modelName === "none") return;
 
-    infoWidget.value = "⏳ Loading info…";
-    node.setDirtyCanvas(true, true);
+    setBtn(btnInfo, "⏳ Loading model info…", node);
 
     try {
         const resp = await fetch(
@@ -137,31 +138,26 @@ async function fetchModelInfo(urlWidget, modelWidget, numCtxWidget, infoWidget, 
         if (data.success) {
             const parts = [];
             if (data.parameter_size && data.parameter_size !== "?") parts.push(data.parameter_size);
-            if (data.family && data.family !== "?")                 parts.push(data.family);
-            if (data.quantization && data.quantization !== "?")     parts.push(data.quantization);
-            if (data.context_length)                                parts.push(`ctx: ${data.context_length.toLocaleString()}`);
+            if (data.family        && data.family        !== "?")   parts.push(data.family);
+            if (data.quantization  && data.quantization  !== "?")   parts.push(data.quantization);
+            if (data.context_length) parts.push(`ctx ${(data.context_length).toLocaleString()}`);
 
-            infoWidget.value = parts.length > 0
-                ? `ℹ️ ${parts.join(" · ")}`
-                : "ℹ️ No details available";
+            setBtn(
+                btnInfo,
+                parts.length > 0 ? `ℹ️  ${parts.join("  ·  ")}` : "ℹ️  No details available",
+                node
+            );
 
-            // Auto-suggest: update num_ctx to match model's context window
-            if (data.context_length && numCtxWidget) {
-                const currentCtx = numCtxWidget.value;
-                const modelCtx   = data.context_length;
-                // Only auto-adjust if user still has the default 4096
-                if (currentCtx === 4096 && modelCtx !== 4096) {
-                    numCtxWidget.value = modelCtx;
-                }
+            // Auto-adjust num_ctx if user still has the default 4096
+            if (data.context_length && numCtxWidget && numCtxWidget.value === 4096) {
+                numCtxWidget.value = data.context_length;
             }
         } else {
-            infoWidget.value = `⚠️ ${truncate(data.error || "Unknown error", 50)}`;
+            setBtn(btnInfo, `⚠️  ${truncate(data.error || "Unknown error", 50)}`, node);
         }
     } catch (err) {
-        infoWidget.value = `⚠️ ${truncate(err.message, 50)}`;
+        setBtn(btnInfo, `⚠️  ${truncate(err.message, 50)}`, node);
     }
-
-    node.setDirtyCanvas(true, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,12 +180,10 @@ function truncate(str, maxLen) {
 function repositionWidget(node, target, anchor) {
     const widgets = node.widgets;
     if (!widgets) return;
-
     const anchorIdx = widgets.indexOf(anchor);
     const targetIdx = widgets.indexOf(target);
     if (anchorIdx === -1 || targetIdx === -1) return;
     if (targetIdx === anchorIdx + 1) return;
-
     widgets.splice(targetIdx, 1);
     const newIdx = widgets.indexOf(anchor) + 1;
     widgets.splice(newIdx, 0, target);
