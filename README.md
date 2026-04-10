@@ -1,6 +1,6 @@
 # ComfyUI Simple Ollama 🦙
 
-A lightweight, no-nonsense custom node for talking to any [Ollama](https://ollama.com) server — local or on your LAN — directly from ComfyUI.
+A lightweight, no-nonsense custom node for talking to any [Ollama](https://ollama.com) server directly from ComfyUI.
 
 Built because most Ollama integrations are buried in huge node packs or abandoned repos. This one does one thing well: send a prompt (with optional image) to Ollama, get text back.
 
@@ -12,6 +12,8 @@ Built because most Ollama integrations are buried in huge node packs or abandone
 - **Thinking mode** — get the model's chain-of-thought as a separate output (QwQ, DeepSeek-R1, …)
 - **VRAM management** — `keep_alive` controls how long the model stays loaded (set to -1 for always-on, 0 to free VRAM immediately)
 - **Prompt passthrough** — third output returns the exact prompt that was sent, useful for debugging or logging
+
+<img width="2812" height="2152" alt="CleanShot 2026-04-10 at 08 10 14@2x" src="https://github.com/user-attachments/assets/264433ff-1b73-482e-8365-b4b1956c8018" />
 
 ## Installation
 
