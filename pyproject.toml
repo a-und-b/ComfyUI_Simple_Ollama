@@ -1,6 +1,6 @@
 [project]
 name = "comfyui-simple-ollama"
-description = "A simple, robust node for talking to any Ollama server (local or LAN) from ComfyUI. Vision, thinking mode, auto model discovery."
+description = "A simple, robust node for talking to any Ollama server (local or LAN) from ComfyUI. Vision, IMAGE-batch support, thinking mode, auto model discovery."
 version = "1.0.0"
 license = {file = "LICENSE"}
 
