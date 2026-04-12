@@ -17,6 +17,12 @@ Built because most Ollama integrations are buried in huge node packs or abandone
 
 ## Installation
 
+### ComfyUI Manager (recommended)
+
+In [ComfyUI Manager](https://github.com/ltdrdata/ComfyUI-Manager), open the custom-node browser and install **comfyui-simple-ollama** from the [Comfy Registry](https://registry.comfy.org/), then restart ComfyUI.
+
+### Manual (git)
+
 1. Navigate to your ComfyUI custom nodes folder:
    ```
    cd /path/to/ComfyUI/custom_nodes/
@@ -27,7 +33,11 @@ Built because most Ollama integrations are buried in huge node packs or abandone
    ```
 3. Restart ComfyUI
 
-No additional dependencies needed — uses only Python stdlib + PIL/numpy (already part of ComfyUI).
+No extra `pip` step for this pack — it uses the Python stdlib plus PIL/numpy (already bundled with ComfyUI).
+
+## Example workflow
+
+The folder [`example_workflows/`](example_workflows/) contains **`example.json`** (full graph), **`example.png`** (canvas preview), and sample images **`fox.png`** / **`owl.png`**. Copy those two PNGs into your ComfyUI **`input/`** directory (keep the same filenames) so the **Load Image** nodes resolve—then drag **`example.json`** onto the canvas (or load it from the workflow menu) to explore how the **Ollama Connection** node, vision inputs, and downstream nodes are wired. You can swap in your own images by changing the **Load Image** widgets or replacing the files in **`input/`**.
 
 ## Usage
 
@@ -84,8 +94,8 @@ If you use several **Simple Ollama 🦙** nodes in one workflow, add one **Ollam
 ## Requirements
 
 - [Ollama](https://ollama.com) running somewhere reachable (localhost or LAN)
-- ComfyUI (any recent version)
-- That's it. No pip installs, no API keys, no accounts.
+- ComfyUI (any recent version) with Python **3.10+** (same as [`pyproject.toml`](pyproject.toml) / typical ComfyUI installs)
+- No separate pip install for this node pack, no API keys, no accounts
 
 ## License
 
