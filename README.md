@@ -13,7 +13,7 @@ Built because most Ollama integrations are buried in huge node packs or abandone
 - **VRAM management** — `keep_alive` controls how long the model stays loaded (`-1` keeps it loaded, `0` unloads immediately)
 - **Prompt text output** — third output returns the user prompt text field for debugging or logging
 
-<img width="2812" height="2152" alt="CleanShot 2026-04-10 at 08 10 14@2x" src="https://github.com/user-attachments/assets/264433ff-1b73-482e-8365-b4b1956c8018" />
+<img width="5324" height="1950" alt="CleanShot 2026-04-12 at 08 29 39@2x" src="https://github.com/user-attachments/assets/2c48bd7e-52e2-411a-be32-e5fd557a7046" />
 
 ## Installation
 
