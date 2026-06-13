@@ -19,6 +19,7 @@ import base64
 import hashlib
 import io
 import json
+import os
 import re
 import socket
 import urllib.error
@@ -41,6 +42,24 @@ class OllamaRequestError(RuntimeError):
         self.status_code = status_code
 
 
+#: Environment variable holding a comma-separated host allowlist. When set, the
+#: backend only talks to these hosts — a defense-in-depth measure against SSRF
+#: via the user-supplied Ollama URL (see SECURITY section in the README).
+ALLOWLIST_ENV_VAR = "SIMPLE_OLLAMA_ALLOWED_HOSTS"
+
+
+def _allowed_hosts() -> set[str] | None:
+    """Parse the host allowlist from the environment.
+
+    Returns ``None`` when no allowlist is configured (any host is permitted,
+    the historical default), otherwise a set of lower-cased hostnames.
+    """
+    raw = os.environ.get(ALLOWLIST_ENV_VAR, "").strip()
+    if not raw:
+        return None
+    return {host.strip().lower() for host in raw.split(",") if host.strip()}
+
+
 def _normalize_ollama_url(url: str) -> str:
     """Validate and normalize the Ollama base URL."""
     candidate = (url or "").strip()
@@ -54,6 +73,15 @@ def _normalize_ollama_url(url: str) -> str:
         raise ValueError("Ollama URL must include a host.")
     if parsed.query or parsed.fragment:
         raise ValueError("Ollama URL must not include query parameters or fragments.")
+
+    allowed = _allowed_hosts()
+    if allowed is not None:
+        host = (parsed.hostname or "").lower()
+        if host not in allowed:
+            raise ValueError(
+                f"Host '{host}' is not allowed. Add it to the "
+                f"{ALLOWLIST_ENV_VAR} environment variable to permit it."
+            )
 
     normalized_path = parsed.path.rstrip("/")
     return urllib.parse.urlunsplit(
@@ -108,6 +136,57 @@ async def _ollama_request_async(url: str, path: str, payload: dict | None = None
     return await asyncio.to_thread(_ollama_request, url, path, payload, method, timeout)
 
 
+def _parse_model_info(data: dict) -> dict:
+    """Extract the display fields from an Ollama ``/api/show`` response.
+
+    Pulled out of the route handler so it can be unit-tested without a live
+    server. Includes the model ``capabilities`` (notably ``vision`` and
+    ``thinking``) so the frontend can show clear capability indicators.
+    """
+    details = data.get("details", {}) or {}
+    model_info = data.get("model_info", {}) or {}
+
+    family = details.get("family", "?")
+    parameter_size = details.get("parameter_size", "?")
+    quant_level = details.get("quantization_level", "?")
+
+    # Context length lives in model_info under various keys.
+    ctx_length = None
+    for key in model_info:
+        if "context_length" in key:
+            ctx_length = model_info[key]
+            break
+
+    # Fallback: parse from the parameters string.
+    if ctx_length is None:
+        params_str = data.get("parameters", "")
+        for line in params_str.splitlines():
+            if "num_ctx" in line:
+                parts = line.split()
+                if len(parts) >= 2:
+                    try:
+                        ctx_length = int(parts[-1])
+                    except ValueError:
+                        pass
+
+    # Ollama 0.6+ reports a capabilities list, e.g. ["completion", "vision",
+    # "thinking", "tools"]. Fall back to projector_info for vision on older
+    # servers that predate the capabilities field.
+    caps = {str(c).lower() for c in (data.get("capabilities") or [])}
+    vision = "vision" in caps or bool(data.get("projector_info"))
+    thinking = "thinking" in caps
+
+    return {
+        "family": family,
+        "parameter_size": parameter_size,
+        "quantization": quant_level,
+        "context_length": ctx_length,
+        "capabilities": sorted(caps),
+        "vision": vision,
+        "thinking": thinking,
+    }
+
+
 # ---------------------------------------------------------------------------
 # Server-side routes (JS frontend → Python backend → Ollama)
 # ---------------------------------------------------------------------------
@@ -144,41 +223,7 @@ try:
             return _json_error("No model specified", status=400)
         try:
             data = await _ollama_request_async(url, "/api/show", {"model": model})
-
-            details = data.get("details", {})
-            model_info = data.get("model_info", {})
-
-            # --- Extract useful fields ---
-            family          = details.get("family", "?")
-            parameter_size  = details.get("parameter_size", "?")
-            quant_level     = details.get("quantization_level", "?")
-
-            # Context length lives in model_info under various keys
-            ctx_length = None
-            for key in model_info:
-                if "context_length" in key:
-                    ctx_length = model_info[key]
-                    break
-
-            # Fallback: parse from the parameters string
-            if ctx_length is None:
-                params_str = data.get("parameters", "")
-                for line in params_str.splitlines():
-                    if "num_ctx" in line:
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            try:
-                                ctx_length = int(parts[-1])
-                            except ValueError:
-                                pass
-
-            return web.json_response({
-                "success": True,
-                "family": family,
-                "parameter_size": parameter_size,
-                "quantization": quant_level,
-                "context_length": ctx_length,
-            })
+            return web.json_response({"success": True, **_parse_model_info(data)})
         except ValueError as exc:
             return _json_error(str(exc), status=400)
         except OllamaRequestError as exc:
@@ -244,7 +289,7 @@ class SimpleOllamaNode:
                 }),
                 # Starts as a one-item combo; JS replaces the list after Connect
                 "model": (["none"], {
-                    "tooltip": "Click '🔌 Connect' first to populate this list.",
+                    "tooltip": "Click 'Connect' first to populate this list.",
                 }),
 
                 # --- Prompt ---
@@ -317,7 +362,7 @@ class SimpleOllamaNode:
         connecting to Ollama — accept any non-empty string so ComfyUI doesn't
         reject values that aren't in the static ['none'] list."""
         if not model or model == "none":
-            return "Select a model first (click 🔌 Connect to load the list)."
+            return "Select a model first (click Connect to load the list)."
         try:
             _resolve_effective_ollama_url(ollama_url, ollama_url_override)
         except ValueError as exc:
@@ -417,7 +462,16 @@ class SimpleOllamaNode:
         try:
             result = _ollama_request(url, "/api/chat", payload, method="POST", timeout=600)
         except (ValueError, OllamaRequestError) as exc:
-            raise RuntimeError(f"[SimpleOllama] {exc}") from exc
+            detail = str(exc)
+            # A common failure: thinking_mode ON against a model that does not
+            # support reasoning. Ollama rejects this with an HTTP 400. Translate
+            # the opaque upstream error into actionable guidance.
+            if thinking_mode and "HTTP 400" in detail:
+                detail += (
+                    " — this model may not support thinking mode. Turn 'Thinking' "
+                    "OFF, or select a reasoning model (e.g. QwQ, DeepSeek-R1)."
+                )
+            raise RuntimeError(f"[SimpleOllama] {detail}") from exc
 
         message = result.get("message", {})
         response_text: str = message.get("content", "")
@@ -513,6 +567,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SimpleOllamaConnectionNode": "Ollama Connection",
-    "SimpleOllamaNode": "Simple Ollama 🦙",
+    "SimpleOllamaConnectionNode": "🦙 AB Simple Ollama Connection",
+    "SimpleOllamaNode": "🦙 AB Simple Ollama",
 }
