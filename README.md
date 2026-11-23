@@ -1,80 +1,111 @@
-# ComfyUI Simple Ollama 🦙
+<div align="center">
 
-A lightweight, no-nonsense custom node for talking to any [Ollama](https://ollama.com) server directly from ComfyUI.
+# AB Simple Ollama: local LLMs and vision models in ComfyUI
 
-Built because most Ollama integrations are buried in huge node packs or abandoned repos. This one does one thing well: send a prompt (with optional image input) to Ollama, get text back.
+**Send a prompt and an image to any Ollama server on your machine or network, get text back.**
+
+<br />
+
+[![Star this repo](https://img.shields.io/github/stars/a-und-b/ComfyUI_Simple_Ollama?style=for-the-badge&logo=github&label=Star&color=yellow)](https://github.com/a-und-b/ComfyUI_Simple_Ollama/stargazers)
+&nbsp;
+[![Comfy Registry installs](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fcomfyui-simple-ollama&query=%24.downloads&label=registry%20installs&style=for-the-badge&color=5b6cff)](https://registry.comfy.org/nodes/comfyui-simple-ollama)
+&nbsp;
+[![Comfy Registry version](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.comfy.org%2Fnodes%2Fcomfyui-simple-ollama&query=%24.latest_version.version&label=version&prefix=v&style=for-the-badge&color=333)](https://registry.comfy.org/nodes/comfyui-simple-ollama)
+&nbsp;
+[![License: MIT](https://img.shields.io/badge/license-MIT-2ea44f?style=for-the-badge)](LICENSE)
+
+<br />
+
+![AB Ollama Connection and Load Image feed AB Ollama, which describes the fox image; Preview as Text shows the answer](example_workflows/ab-ollama-describe-image-preview.png)
+
+---
+
+Most Ollama integrations sit inside large node packs or were abandoned. AB Simple Ollama does one thing: it sends a prompt, with an optional image, to [Ollama](https://ollama.com) and returns the text. Connect fills the model list from your server, and an info row shows size, quantization, context window and what the model can do.
+
+[Install](#install) · [Example workflow](#example-workflow) · [Features](#features) · [Usage](#usage) · [Contributing](#contributing)
+
+</div>
+
+---
+
+## Why AB Simple Ollama
+
+No API keys, no accounts, no extra pip packages: the pack uses the Python standard library plus PIL and numpy, which ComfyUI already ships. The node talks only to the Ollama URL you enter; see [Security](#security) before you expose ComfyUI to other people.
 
 ## Features
 
-- **One-click Connect** — enter your Ollama URL, hit Connect, and the node auto-discovers all available models
-- **Live model info** — shows parameter count, quantization, model family and context window for the selected model
-- **Vision support** — pipe in one IMAGE or an IMAGE batch and every frame is sent to the model (works with Gemma 3, LLaVA, Qwen-VL, etc.)
-- **Thinking mode** — get the model's chain-of-thought as a separate output (QwQ, DeepSeek-R1, …)
-- **VRAM management** — `keep_alive` controls how long the model stays loaded (`-1` keeps it loaded, `0` unloads immediately)
-- **Prompt text output** — third output returns the user prompt text field for debugging or logging
+| You want | You use |
+|----------|---------|
+| The models on your server in the dropdown | **Connect** below the model field |
+| Size, quantization, context window of a model | the info row, with chips for Vision and Thinking |
+| A caption or answer about an image | an IMAGE (or an IMAGE batch) into `image` |
+| The model's reasoning as its own output | `thinking_mode` on, output `thinking` |
+| The model unloaded right after the run | `keep_alive` = `0` (`-1` keeps it loaded) |
+| One server URL for many nodes | **AB Ollama Connection** → `ollama_url_override` |
 
-<img width="5324" height="1950" alt="CleanShot 2026-04-12 at 08 29 39@2x" src="https://github.com/user-attachments/assets/2c48bd7e-52e2-411a-be32-e5fd557a7046" />
+## Install
 
-## Installation
+**ComfyUI Manager:** search for **AB Simple Ollama**, install, restart ComfyUI.
 
-### ComfyUI Manager (recommended)
+**comfy-cli:**
 
-In [ComfyUI Manager](https://github.com/ltdrdata/ComfyUI-Manager), open the custom-node browser and install **comfyui-simple-ollama** from the [Comfy Registry](https://registry.comfy.org/), then restart ComfyUI.
+```bash
+comfy node install comfyui-simple-ollama
+```
 
-### Manual (git)
+**Manually:**
 
-1. Navigate to your ComfyUI custom nodes folder:
-   ```
-   cd /path/to/ComfyUI/custom_nodes/
-   ```
-2. Clone this repository:
-   ```
-   git clone https://github.com/a-und-b/ComfyUI_Simple_Ollama.git
-   ```
-3. Restart ComfyUI
+```bash
+cd ComfyUI/custom_nodes/
+git clone https://github.com/a-und-b/ComfyUI_Simple_Ollama.git
+```
 
-No extra `pip` step for this pack — it uses the Python stdlib plus PIL/numpy (already bundled with ComfyUI).
+No `pip` step. Restart ComfyUI. The nodes appear under **AB/LLM**; search for `AB Ollama` or `ollama`.
 
 ## Example workflow
 
-The folder [`example_workflows/`](example_workflows/) contains **`example.json`** (full graph), **`example.png`** (canvas preview), and sample images **`fox.png`** / **`owl.png`**. Copy those two PNGs into your ComfyUI **`input/`** directory (keep the same filenames) so the **Load Image** nodes resolve—then drag **`example.json`** onto the canvas (or load it from the workflow menu) to explore how the **🦙 AB Simple Ollama Connection** node, vision inputs, and downstream nodes are wired. You can swap in your own images by changing the **Load Image** widgets or replacing the files in **`input/`**.
+[`ab-ollama-describe-image.json`](example_workflows/ab-ollama-describe-image.json): **AB Ollama Connection** (`http://localhost:11434`) and **Load Image** feed **AB Ollama**, which describes the image; **Preview as Text** shows the answer. Drag the file onto the canvas, or open it in ComfyUI under Workflow → Browse Templates, under the pack's name. Then:
+
+1. Copy [`fox.png`](example_workflows/fox.png) into ComfyUI's `input/` folder, or pick your own image in **Load Image**.
+2. Set your Ollama URL in **AB Ollama Connection** and click **Connect Downstream**.
+3. Choose a model with the Vision chip and queue.
 
 ## Usage
 
-1. Add the **🦙 AB Simple Ollama** node (category: `AI/Ollama`)
-2. Enter your Ollama server URL (e.g. `http://192.168.1.100:11434`)
-3. Click **Connect** (between the model field and the prompt) — the model dropdown fills from your server
-4. Select a model — the info row shows parameters, quantization, and context window
-5. Write your prompt in the field below, adjust other settings, queue the workflow
+1. Add **AB Ollama**.
+2. Enter your Ollama server URL (e.g. `http://192.168.1.100:11434`).
+3. Click **Connect**: the model dropdown fills from your server.
+4. Select a model; the info row shows parameters, quantization and context window.
+5. Write your prompt, adjust the settings, queue.
 
 Notes:
-- If you connect an IMAGE batch, every frame is forwarded to Ollama as a separate entry in `messages[].images`.
-- The Connect/model-info helper routes proxy to the Ollama URL you enter — see [Security](#security) below before exposing ComfyUI to untrusted users.
+- An IMAGE batch sends every frame to Ollama as its own entry in `messages[].images`.
+- The Connect and model-info helper routes call the Ollama URL you enter: read [Security](#security) before you expose ComfyUI to untrusted users.
 
 ### Multiple Nodes / Shared URL
 
-If you use several **🦙 AB Simple Ollama** nodes in one workflow, add one **🦙 AB Simple Ollama Connection** node and connect its `ollama_url` output to each node's optional `ollama_url_override` input.
+For several **AB Ollama** nodes in one workflow, add one **AB Ollama Connection** and connect its `ollama_url` output to each node's optional `ollama_url_override` input.
 
-- This lets multiple nodes share one central Ollama server URL.
-- The regular `ollama_url` widget still works as a fallback when `ollama_url_override` is not connected.
-- The **Connect** button and model info row will use the shared URL when the override input is wired.
-- The **Connect Downstream** button on `🦙 AB Simple Ollama Connection` fetches models once and updates every connected `🦙 AB Simple Ollama` node, and overwrites each node's `ollama_url` widget with the shared URL.
-- Downstream nodes keep their current model when it still exists; otherwise they switch to the first available model and refresh model info automatically.
+- All nodes then share one Ollama server URL.
+- The node's own `ollama_url` field is the fallback when `ollama_url_override` is not connected.
+- **Connect** and the info row use the shared URL when the override is wired.
+- **Connect Downstream** on **AB Ollama Connection** fetches the models once, updates every connected **AB Ollama** node and writes the shared URL into each node's `ollama_url` field.
+- A downstream node keeps its model when the server still has it; otherwise it switches to the first model and refreshes the info row.
 
 ### Inputs
 
 | Input | Type | Required | Description |
 |---|---|---|---|
 | `ollama_url` | STRING | ✅ | Ollama server URL |
-| `ollama_url_override` | STRING | ❌ | Optional shared URL input, for example from the `🦙 AB Simple Ollama Connection` node |
-| `model` | COMBO | ✅ | Model selector (populated via Connect) |
-| `prompt` | STRING | ✅ | Your prompt — context, instructions, question, all in one field |
+| `ollama_url_override` | STRING | ❌ | Optional shared URL, for example from **AB Ollama Connection** |
+| `model` | COMBO | ✅ | Model selector (filled by Connect) |
+| `prompt` | STRING | ✅ | Your prompt: context, instructions and question in one field |
 | `seed` | INT | ✅ | Random seed for reproducible outputs |
 | `max_tokens` | INT | ✅ | Max tokens to generate |
 | `temperature` | FLOAT | ✅ | Sampling temperature (0 = deterministic) |
-| `keep_alive` | FLOAT | ✅ | Minutes to keep the model loaded (`-1` = keep loaded, `0` = unload immediately) |
-| `thinking_mode` | BOOL | ✅ | Enable chain-of-thought reasoning |
-| `image` | IMAGE | ❌ | Optional vision input; a single image sends one image, an IMAGE batch sends all frames |
+| `keep_alive` | FLOAT | ✅ | Minutes to keep the model loaded (`-1` = keep loaded, `0` = unload at once) |
+| `thinking_mode` | BOOL | ✅ | Ask the model for its reasoning |
+| `image` | IMAGE | ❌ | Optional vision input; a batch sends all frames |
 | `system_prompt` | STRING | ❌ | System-level instruction |
 
 ### Outputs
@@ -82,49 +113,67 @@ If you use several **🦙 AB Simple Ollama** nodes in one workflow, add one **�
 | Output | Description |
 |---|---|
 | `response` | The model's text response |
-| `thinking` | The model's reasoning trace (empty if thinking mode is off) |
-| `prompt_text` | The user prompt text field, returned unchanged for debugging/logging |
+| `thinking` | The model's reasoning (empty when thinking mode is off) |
+| `prompt_text` | The prompt field, returned unchanged for debugging or logging |
 
-### 🦙 AB Simple Ollama Connection Outputs
+### AB Ollama Connection outputs
 
 | Output | Description |
 |---|---|
-| `ollama_url` | The normalized Ollama base URL for downstream Simple Ollama nodes |
+| `ollama_url` | The normalized Ollama base URL for downstream **AB Ollama** nodes |
+
+Up to 1.2.x the nodes were called *🦙 AB Simple Ollama* and *🦙 AB Simple Ollama Connection*, with Title Case field labels. Search still finds the old names, and saved workflows load unchanged.
 
 ## Requirements
 
 - [Ollama](https://ollama.com) running somewhere reachable (localhost or LAN)
-- ComfyUI (any recent version) with Python **3.10+** (same as [`pyproject.toml`](pyproject.toml) / typical ComfyUI installs)
-- No separate pip install for this node pack, no API keys, no accounts
+- ComfyUI (any recent version) with Python **3.10+**
+- No pip install for this pack, no API keys, no accounts
 
 ## Security
 
-This node ships two server-side helper routes (`/simple_ollama/models` and
+This pack ships two server-side helper routes (`/simple_ollama/models` and
 `/simple_ollama/model_info`) that fetch a **user-supplied URL** so the frontend
-can discover models. On a single-user, local ComfyUI install this is exactly
-what you want. **But** because the ComfyUI *server* performs the request, anyone
-who can reach your ComfyUI instance can make it fetch arbitrary `http(s)` URLs —
-a classic [SSRF](https://owasp.org/www-community/attacks/Server_Side_Request_Forgery)
-vector. This matters if your ComfyUI is exposed to the internet or shared with
+can list models. On a single-user, local ComfyUI that is what you want. **But**
+because the ComfyUI *server* makes the request, anyone who can reach your
+ComfyUI can make it fetch any `http(s)` URL: a classic
+[SSRF](https://owasp.org/www-community/attacks/Server_Side_Request_Forgery)
+risk. It matters when your ComfyUI is exposed to the internet or shared with
 untrusted users (it could be pointed at cloud metadata endpoints or internal
 services).
 
-**Host allowlist.** To lock the backend down to known Ollama hosts, set the
+**Host allowlist.** To limit the backend to known Ollama hosts, set the
 `SIMPLE_OLLAMA_ALLOWED_HOSTS` environment variable to a comma-separated list of
-hostnames/IPs before starting ComfyUI:
+hostnames or IPs before starting ComfyUI:
 
 ```bash
 export SIMPLE_OLLAMA_ALLOWED_HOSTS="localhost,127.0.0.1,192.168.1.100"
 ```
 
-When set, the node (both the helper routes **and** `run()`) refuses any URL
-whose host is not on the list. When unset, behaviour is unchanged — any host is
-allowed (the historical default for local installs). Matching is on hostname
-only (ports are not restricted) and is case-insensitive.
+When set, the node (the helper routes **and** `run()`) refuses any URL whose
+host is not on the list. When unset, any host is allowed (the default for local
+installs). Matching is on hostname only (ports are not restricted) and ignores
+case.
 
 If you run ComfyUI behind a reverse proxy or on a shared machine, set the
 allowlist and don't expose the raw ComfyUI port to the public internet.
 
+## Contributing
+
+Bug reports and pull requests are welcome. Open an [issue](https://github.com/a-und-b/ComfyUI_Simple_Ollama/issues) first for larger changes; [`CONTRIBUTING.md`](CONTRIBUTING.md) has the three steps.
+
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+[MIT](LICENSE)
+
+---
+
+<div align="center">
+
+Built by [Holger Will](https://github.com/a-und-b) at [anders & besser](https://andersundbesser.de)
+
+<br />
+
+[![Star this repo](https://img.shields.io/github/stars/a-und-b/ComfyUI_Simple_Ollama?style=for-the-badge&logo=github&label=Star&color=yellow)](https://github.com/a-und-b/ComfyUI_Simple_Ollama/stargazers)
+
+</div>

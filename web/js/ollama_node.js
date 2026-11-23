@@ -8,7 +8,7 @@
  *     safely so seed / control-after-generate stay paired).
  *  3. Persists the last-used URL in localStorage across page reloads.
  *  4. Lets the Ollama Connection node push model updates to all connected
- *     Simple Ollama nodes in one click.
+ *     AB Ollama nodes in one click.
  */
 
 import { app } from "../../scripts/app.js";
@@ -20,39 +20,8 @@ const ROUTE_INFO = "/simple_ollama/model_info";
 const LS_KEY_URL = "simple_ollama_last_url";
 const OVERRIDE_INPUT_NAME = "ollama_url_override";
 
-// Human-friendly display labels for widgets and input/output slots. Purely
-// cosmetic — the underlying widget/slot `name` (used for serialization) stays
-// untouched, so existing workflows keep working.
-const NICE_LABELS = {
-    ollama_url: "Ollama URL",
-    ollama_url_override: "Ollama URL (shared)",
-    model: "Model",
-    prompt: "Prompt",
-    seed: "Seed",
-    control_after_generate: "Control After Generate",
-    max_tokens: "Max Tokens",
-    temperature: "Temperature",
-    keep_alive: "Keep Alive (min)",
-    thinking_mode: "Thinking Mode",
-    system_prompt: "System Prompt",
-    image: "Image",
-    response: "Response",
-    thinking: "Thinking",
-    prompt_text: "Prompt Text",
-};
-
-function applyNiceLabels(node) {
-    for (const collection of [node.widgets, node.inputs, node.outputs]) {
-        for (const item of collection ?? []) {
-            const nice = NICE_LABELS[item?.name];
-            if (nice) item.label = nice;
-        }
-    }
-    node.setDirtyCanvas?.(true, true);
-}
-
 app.registerExtension({
-    name: "Comfy.SimpleOllama",
+    name: "a-und-b.SimpleOllama.connect",
 
     async beforeRegisterNodeDef(nodeType, nodeData) {
         if (nodeData.name === NODE_NAME) {
@@ -130,7 +99,6 @@ function registerSimpleOllamaNode(nodeType) {
 
         repositionWidget(node, btnConnect, modelWidget);
         repositionWidget(node, infoWidget, btnConnect);
-        applyNiceLabels(node);
 
         const originalCallback = modelWidget.callback;
         modelWidget.callback = function (value) {
@@ -141,6 +109,23 @@ function registerSimpleOllamaNode(nodeType) {
         if (modelWidget.value && modelWidget.value !== "none" && getEffectiveOllamaUrl(node, urlWidget).url) {
             queueMicrotask(() => fetchModelInfo(node));
         }
+    };
+
+    // A saved workflow names a model the list only knows after Connect: keep it
+    // selectable, so the combo does not show it as invalid (the backend takes any name).
+    const originalOnConfigure = nodeType.prototype.onConfigure;
+    nodeType.prototype.onConfigure = function () {
+        const r = originalOnConfigure?.apply(this, arguments);
+        const w = findWidget(this, "model");
+        const values = w?.options?.values;
+        if (Array.isArray(values) && w.value && w.value !== "none" && !values.includes(w.value)) {
+            w.options.values = [...values.filter((v) => v !== "none"), w.value];
+        }
+        const state = this.simpleOllamaState;
+        if (state && w?.value && w.value !== "none" && getEffectiveOllamaUrl(this, state.urlWidget).url) {
+            queueMicrotask(() => fetchModelInfo(this));
+        }
+        return r;
     };
 }
 
@@ -199,7 +184,6 @@ function registerConnectionNode(nodeType) {
         );
 
         repositionWidget(node, btnConnect, urlWidget);
-        applyNiceLabels(node);
     };
 }
 

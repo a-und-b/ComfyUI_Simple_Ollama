@@ -237,12 +237,16 @@ except ImportError:
 # The node itself
 # ---------------------------------------------------------------------------
 class SimpleOllamaConnectionNode:
-    """Provide a shared Ollama URL for multiple Simple Ollama nodes."""
+    """Provide a shared Ollama URL for multiple AB Ollama nodes."""
 
-    CATEGORY = "AI/Ollama"
+    CATEGORY = "AB/LLM"
+    SEARCH_ALIASES = ["AB Simple Ollama Connection", "ollama url", "ollama server"]
     FUNCTION = "run"
     RETURN_TYPES = ("STRING",)
     RETURN_NAMES = ("ollama_url",)
+    DESCRIPTION = (
+        "Shares a single Ollama base URL with connected AB Ollama nodes."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -251,7 +255,7 @@ class SimpleOllamaConnectionNode:
                 "ollama_url": ("STRING", {
                     "default": "http://192.168.1.x:11434",
                     "multiline": False,
-                    "tooltip": "Shared Ollama base URL for downstream Simple Ollama nodes.",
+                    "tooltip": "Shared Ollama base URL for downstream AB Ollama nodes.",
                 }),
             },
         }
@@ -272,10 +276,15 @@ class SimpleOllamaNode:
     """Send a prompt (+ optional image) to an Ollama server and return the
     model's response plus its reasoning/thinking trace."""
 
-    CATEGORY = "AI/Ollama"
+    CATEGORY = "AB/LLM"
+    SEARCH_ALIASES = ["AB Simple Ollama", "Simple Ollama", "llm", "vision", "caption", "chat"]
     FUNCTION = "run"
     RETURN_TYPES = ("STRING", "STRING", "STRING")
     RETURN_NAMES = ("response", "thinking", "prompt_text")
+    DESCRIPTION = (
+        "Calls a local or remote Ollama model with an optional image and "
+        "returns the response, thinking trace, and prompt text."
+    )
 
     @classmethod
     def INPUT_TYPES(cls):
@@ -567,6 +576,6 @@ NODE_CLASS_MAPPINGS = {
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
-    "SimpleOllamaConnectionNode": "🦙 AB Simple Ollama Connection",
-    "SimpleOllamaNode": "🦙 AB Simple Ollama",
+    "SimpleOllamaConnectionNode": "AB Ollama Connection",
+    "SimpleOllamaNode": "AB Ollama",
 }

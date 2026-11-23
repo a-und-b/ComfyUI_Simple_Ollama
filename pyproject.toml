@@ -1,7 +1,7 @@
 [project]
 name = "comfyui-simple-ollama"
-description = "A simple, robust node for talking to any Ollama server (local or LAN) from ComfyUI. Vision, IMAGE-batch support, thinking mode, auto model discovery."
-version = "1.2.0"
+description = "AB Ollama sends a prompt and optional images to any Ollama server (local or LAN) and returns text: vision, IMAGE batches, thinking mode, model list via Connect. No extra pip packages."
+version = "1.3.0"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 classifiers = [
@@ -15,5 +15,5 @@ Documentation = "https://github.com/a-und-b/ComfyUI_Simple_Ollama/blob/main/READ
 
 [tool.comfy]
 PublisherId = "a-und-b"
-DisplayName = "ComfyUI_Simple_Ollama"
+DisplayName = "AB Simple Ollama"
 Icon = ""
